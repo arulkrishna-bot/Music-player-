@@ -1,204 +1,261 @@
-name: Build Music Player APK
+name: Build Beautiful Music Player APK
 on:
   workflow_dispatch:
   push:
-    branches: ["main", "master"]
-permissions:
-  contents: read
+    branches: ["main"]
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
-        
-      - name: Create Android project
-        shell: bash
-        run: |
-          set -e
-          mkdir -p .
-          
-          # Gradle Settings
-          cat << 'EOF' > settings.gradle
-          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
-          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
-          rootProject.name='MusicPlayer'; include ':app'
-          EOF
 
-          cat << 'EOF' > build.gradle
-          plugins { id 'com.android.application' version '8.6.1' apply false }
-          EOF
-
-          cat << 'EOF' > gradle.properties
-          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
-          android.useAndroidX=true
-          android.nonTransitiveRClass=true
-          EOF
-
-          # App Build Config
-          mkdir -p app
-          cat << 'EOF' > app/build.gradle
-          plugins { id 'com.android.application' }
-          android { 
-              namespace 'com.example.musicplayer'
-              compileSdk 35
-              defaultConfig { 
-                  applicationId 'com.example.musicplayer'
-                  minSdk 23
-                  targetSdk 35
-                  versionCode 1
-                  versionName '1.0' 
-              }
-          }
-          EOF
-
-          # Android Manifest (Storage Permission Added)
-          mkdir -p app/src/main
-          cat << 'EOF' > app/src/main/AndroidManifest.xml
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
-              <application android:theme="@style/AppTheme" android:label="Music Player" android:allowBackup="true" android:supportsRtl="true">
-                  <activity android:name=".MainActivity" android:screenOrientation="portrait" android:exported="true">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN"/>
-                          <category android:name="android.intent.category.LAUNCHER"/>
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          EOF
-
-          # App Theme
-          mkdir -p app/src/main/res/values
-          cat << 'EOF' > app/src/main/res/values/styles.xml
-          <resources>
-              <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
-                  <item name="android:colorPrimary">#4A00E0</item>
-                  <item name="android:colorPrimaryDark">#1E1E24</item>
-                  <item name="android:colorAccent">#8E2DE2</item>
-              </style>
-          </resources>
-          EOF
-
-          # Main Activity (Music Player UI and Logic)
-          mkdir -p app/src/main/java/com/example/musicplayer
-          cat << 'EOF' > app/src/main/java/com/example/musicplayer/MainActivity.java
-          package com.example.musicplayer;
-          
-          import android.app.Activity;
-          import android.content.Intent;
-          import android.graphics.Color;
-          import android.media.MediaPlayer;
-          import android.net.Uri;
-          import android.os.Bundle;
-          import android.view.Gravity;
-          import android.widget.Button;
-          import android.widget.LinearLayout;
-          import android.widget.TextView;
-          import android.widget.Toast;
-
-          public class MainActivity extends Activity {
-              MediaPlayer player;
-              TextView titleText;
-
-              @Override
-              public void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-                  
-                  // Main UI Layout
-                  LinearLayout root = new LinearLayout(this);
-                  root.setOrientation(LinearLayout.VERTICAL);
-                  root.setGravity(Gravity.CENTER);
-                  root.setBackgroundColor(Color.parseColor("#1E1E24")); // Dark background
-
-                  titleText = new TextView(this);
-                  titleText.setText("No Song Selected");
-                  titleText.setTextColor(Color.WHITE);
-                  titleText.setTextSize(22);
-                  titleText.setGravity(Gravity.CENTER);
-                  titleText.setPadding(0, 0, 0, 60);
-
-                  // Button to pick a song from folder
-                  Button pickBtn = new Button(this);
-                  pickBtn.setText("Select Song from Folder");
-                  pickBtn.setBackgroundColor(Color.parseColor("#8E2DE2"));
-                  pickBtn.setTextColor(Color.WHITE);
-                  pickBtn.setOnClickListener(v -> {
-                      Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-                      intent.setType("audio/*");
-                      startActivityForResult(intent, 1);
-                  });
-
-                  // Play/Pause Button
-                  Button playBtn = new Button(this);
-                  playBtn.setText("Play / Pause");
-                  playBtn.setBackgroundColor(Color.parseColor("#4A00E0"));
-                  playBtn.setTextColor(Color.WHITE);
-                  playBtn.setOnClickListener(v -> {
-                      if (player != null) {
-                          if (player.isPlaying()) {
-                              player.pause();
-                          } else {
-                              player.start();
-                          }
-                      } else {
-                          Toast.makeText(this, "Please select a song first!", Toast.LENGTH_SHORT).show();
-                      }
-                  });
-
-                  // Add views with spacing
-                  LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                          LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-                  params.setMargins(0, 20, 0, 20);
-
-                  root.addView(titleText, params);
-                  root.addView(pickBtn, params);
-                  root.addView(playBtn, params);
-                  setContentView(root);
-              }
-
-              @Override
-              protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-                  if (requestCode == 1 && resultCode == RESULT_OK && data != null) {
-                      Uri audioUri = data.getData();
-                      try {
-                          if (player != null) {
-                              player.release();
-                          }
-                          player = MediaPlayer.create(this, audioUri);
-                          player.start();
-                          titleText.setText("Playing Your Song \uD83C\uDFB5");
-                      } catch (Exception e) {
-                          Toast.makeText(this, "Error playing the song", Toast.LENGTH_SHORT).show();
-                      }
-                  }
-              }
-
-              @Override
-              protected void onDestroy() {
-                  super.onDestroy();
-                  if (player != null) player.release();
-              }
-          }
-          EOF
-
-      - name: Set up Java 17
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
+          distribution: 'zulu'
           java-version: '17'
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
         with:
-          gradle-version: '8.7'
+          flutter-version: '3.19.0'
+          channel: 'stable'
+
+      - name: Create Flutter Project & Add Dependencies
+        run: |
+          flutter create glass_player
+          cd glass_player
+          flutter pub add audioplayers
+          flutter pub add file_picker
+
+      - name: Write Main Code (UI & Logic)
+        run: |
+          cd glass_player
+          cat << 'EOF' > lib/main.dart
+          import 'package:flutter/material.dart';
+          import 'dart:ui';
+          import 'package:audioplayers/audioplayers.dart';
+          import 'package:file_picker/file_picker.dart';
+
+          void main() => runApp(const BeautifulMusicApp());
+
+          class BeautifulMusicApp extends StatelessWidget {
+            const BeautifulMusicApp({super.key});
+            @override
+            Widget build(BuildContext context) {
+              return MaterialApp(
+                debugShowCheckedModeBanner: false,
+                theme: ThemeData.dark(),
+                home: const PlayerScreen(),
+              );
+            }
+          }
+
+          class PlayerScreen extends StatefulWidget {
+            const PlayerScreen({super.key});
+            @override
+            State<PlayerScreen> createState() => _PlayerScreenState();
+          }
+
+          class _PlayerScreenState extends State<PlayerScreen> {
+            final AudioPlayer _audioPlayer = AudioPlayer();
+            bool isPlaying = false;
+            Duration duration = Duration.zero;
+            Duration position = Duration.zero;
+            String currentSong = "No Song Selected";
+
+            @override
+            void initState() {
+              super.initState();
+              _audioPlayer.onPlayerStateChanged.listen((state) {
+                if(mounted) setState(() => isPlaying = state == PlayerState.playing);
+              });
+              _audioPlayer.onDurationChanged.listen((d) {
+                if(mounted) setState(() => duration = d);
+              });
+              _audioPlayer.onPositionChanged.listen((p) {
+                if(mounted) setState(() => position = p);
+              });
+            }
+
+            @override
+            void dispose() {
+              _audioPlayer.dispose();
+              super.dispose();
+            }
+
+            Future<void> pickAndPlaySong() async {
+              FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.audio);
+              if (result != null && result.files.single.path != null) {
+                String path = result.files.single.path!;
+                String fileName = result.files.single.name;
+                setState(() => currentSong = fileName);
+                await _audioPlayer.play(DeviceFileSource(path));
+              }
+            }
+
+            void togglePlayPause() async {
+              if (isPlaying) {
+                await _audioPlayer.pause();
+              } else {
+                await _audioPlayer.resume();
+              }
+            }
+
+            String formatTime(Duration duration) {
+              String twoDigits(int n) => n.toString().padLeft(2, '0');
+              final minutes = twoDigits(duration.inMinutes.remainder(60));
+              final seconds = twoDigits(duration.inSeconds.remainder(60));
+              return "\$minutes:\$seconds";
+            }
+
+            @override
+            Widget build(BuildContext context) {
+              return Scaffold(
+                body: Stack(
+                  children: [
+                    // Gradient Background
+                    Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF1E1E24), Color(0xFF4A00E0), Color(0xFF8E2DE2)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                    ),
+                    // Glassmorphism Container
+                    Center(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(40),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
+                          child: Container(
+                            width: 350,
+                            height: 680,
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(40),
+                              border: Border.all(color: Colors.white.withOpacity(0.2)),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Icon(Icons.keyboard_arrow_down, color: Colors.white70),
+                                    const Text("Now Playing", style: TextStyle(color: Colors.white, fontSize: 16)),
+                                    const Icon(Icons.more_horiz, color: Colors.white70),
+                                  ],
+                                ),
+                                const SizedBox(height: 40),
+                                // Album Art Area (Click to pick song)
+                                GestureDetector(
+                                  onTap: pickAndPlaySong,
+                                  child: Container(
+                                    width: 220,
+                                    height: 220,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: Colors.white24, width: 2),
+                                      boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 20)],
+                                    ),
+                                    child: const CircleAvatar(
+                                      backgroundColor: Colors.black26,
+                                      child: Icon(Icons.folder_music, size: 60, color: Colors.white70),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                const Text("Tap the circle to pick a song", style: TextStyle(color: Colors.white54, fontSize: 12)),
+                                const SizedBox(height: 20),
+                                Text(
+                                  currentSong,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 30),
+                                // Seekbar
+                                SliderTheme(
+                                  data: SliderThemeData(
+                                    trackHeight: 4,
+                                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                                    activeTrackColor: Colors.purpleAccent,
+                                    inactiveTrackColor: Colors.white30,
+                                    thumbColor: Colors.white,
+                                  ),
+                                  child: Slider(
+                                    min: 0,
+                                    max: duration.inSeconds.toDouble(),
+                                    value: position.inSeconds.toDouble().clamp(0, duration.inSeconds.toDouble()),
+                                    onChanged: (value) async {
+                                      final position = Duration(seconds: value.toInt());
+                                      await _audioPlayer.seek(position);
+                                    },
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(formatTime(position), style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                                      Text(formatTime(duration), style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                // Controls
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                  children: [
+                                    const Icon(Icons.shuffle, color: Colors.white54, size: 24),
+                                    const Icon(Icons.skip_previous, color: Colors.white, size: 36),
+                                    GestureDetector(
+                                      onTap: togglePlayPause,
+                                      child: CircleAvatar(
+                                        radius: 35,
+                                        backgroundColor: const Color(0xFFAA00FF),
+                                        child: Icon(isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white, size: 40),
+                                      ),
+                                    ),
+                                    const Icon(Icons.skip_next, color: Colors.white, size: 36),
+                                    const Icon(Icons.repeat, color: Colors.white54, size: 24),
+                                  ],
+                                )
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+          }
+          EOF
+
+      - name: Adjust Android Manifest for Storage Permission
+        run: |
+          cd glass_player
+          sed -i 's/<application/<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"\/>\n    <application/g' android/app/src/main/AndroidManifest.xml
 
       - name: Build APK
-        run: gradle --no-daemon :app:assembleDebug
+        run: |
+          cd glass_player
+          flutter build apk --release
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: MusicPlayer-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: Beautiful-MusicPlayer-APK
+          path: glass_player/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
